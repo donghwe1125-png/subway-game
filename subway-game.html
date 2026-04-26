@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지하철 게임 🚇</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+            background: #111827;
+            color: #f3f4f6;
+            min-height: 100vh;
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { font-size: 1.9em; margin-bottom: 4px; text-align: center; }
+        .subtitle { color: #6b7280; font-size: 0.85em; margin-bottom: 24px; text-align: center; }
+        #app { width: 100%; max-width: 560px; }
+
+        .btn { padding: 11px 20px; border: none; border-radius: 9px; cursor: pointer; font-size: 0.95em; font-weight: 600; transition: opacity 0.15s; }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-ghost { background: #1f2937; color: #9ca3af; border: 1px solid #374151; }
+
+        /* ── Setup ── */
+        .card { background: #1f2937; border-radius: 16px; padding: 28px; }
+        .card h2 { margin-bottom: 8px; }
+        .card > p { color: #9ca3af; font-size: 0.85em; margin-bottom: 22px; }
+        .counter-row { display: flex; align-items: center; justify-content: center; gap: 22px; margin-bottom: 24px; }
+        .count-btn { width: 42px; height: 42px; border-radius: 50%; border: none; background: #374151; color: white; font-size: 1.4em; cursor: pointer; }
+        .count-num { font-size: 2.2em; font-weight: bold; min-width: 36px; text-align: center; }
+
+        .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid #374151; }
+        .setting-label { color: #d1d5db; font-size: 0.9em; }
+        .toggle { width: 46px; height: 26px; background: #374151; border-radius: 13px; border: none; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+        .toggle.on { background: #3b82f6; }
+        .toggle::after { content: ''; position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: left 0.2s; }
+        .toggle.on::after { left: 23px; }
+
+        .timer-config { padding: 10px 0 4px; display: flex; align-items: center; gap: 12px; }
+        .timer-config span { color: #9ca3af; font-size: 0.85em; white-space: nowrap; }
+        .timer-slider { flex: 1; accent-color: #3b82f6; }
+        .timer-val { font-weight: bold; color: #f3f4f6; min-width: 30px; text-align: right; font-size: 0.9em; }
+
+        /* ── Line Select ── */
+        .player-banner { padding: 14px; border-radius: 12px; text-align: center; font-size: 1.2em; font-weight: bold; margin-bottom: 14px; }
+        .line-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+        .line-btn { padding: 16px 10px; border: none; border-radius: 11px; color: white; font-weight: bold; cursor: pointer; font-size: 0.95em; transition: transform 0.1s; }
+        .line-btn:hover { transform: scale(1.05); }
+
+        /* ── Playing ── */
+        .line-bar { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #1f2937; border-radius: 12px; margin-bottom: 12px; }
+        .line-dot { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8em; color: white; flex-shrink: 0; }
+        .line-bar-name { font-size: 1.15em; font-weight: bold; }
+        .line-bar-sub { font-size: 0.8em; color: #6b7280; margin-top: 2px; }
+
+        .timer-wrap { height: 6px; background: #374151; border-radius: 3px; margin-bottom: 12px; overflow: hidden; }
+        .timer-bar { height: 100%; border-radius: 3px; background: #3b82f6; transition: width 0.1s linear, background 0.3s; }
+        .timer-bar.warn { background: #f59e0b; }
+        .timer-bar.danger { background: #ef4444; }
+
+        .err { color: #ef4444; text-align: center; min-height: 22px; font-size: 0.85em; margin-bottom: 8px; }
+        .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .input-row input { flex: 1; padding: 13px 14px; background: #1f2937; border: 2px solid #374151; border-radius: 10px; color: #f3f4f6; font-size: 1em; transition: border-color 0.2s; }
+        .input-row input:focus { outline: none; border-color: #3b82f6; }
+
+        /* 환승 */
+        .xfer-section { margin-bottom: 10px; }
+        .xfer-toggle-btn { width: 100%; padding: 10px; background: #1f2937; border: 1px dashed #374151; border-radius: 10px; color: #9ca3af; cursor: pointer; font-size: 0.88em; transition: all 0.15s; }
+        .xfer-toggle-btn:hover { border-color: #6b7280; color: #d1d5db; }
+        .xfer-toggle-btn.active { border-color: #f59e0b; color: #f59e0b; background: #1c1a10; }
+        .xfer-panel { margin-top: 10px; padding: 14px; background: #1f2937; border: 1px solid #374151; border-radius: 10px; }
+        .xfer-panel p { font-size: 0.82em; color: #9ca3af; margin-bottom: 10px; }
+        .xfer-line-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+        .xfer-line-btn { padding: 6px 12px; border: none; border-radius: 16px; color: white; font-weight: bold; cursor: pointer; font-size: 0.8em; opacity: 0.9; transition: transform 0.1s, opacity 0.1s; }
+        .xfer-line-btn:hover { transform: scale(1.05); opacity: 1; }
+        .xfer-line-btn.selected { outline: 3px solid white; outline-offset: 2px; }
+        .xfer-selected-info { margin-top: 8px; font-size: 0.82em; color: #f59e0b; }
+
+        .give-up-row { margin-bottom: 0; }
+
+        /* ── Over ── */
+        .over-card { background: #1f2937; border-radius: 16px; padding: 32px; text-align: center; }
+        .over-card h2 { font-size: 2em; margin-bottom: 12px; }
+        .over-loser { font-size: 1.2em; font-weight: bold; margin-bottom: 6px; }
+        .over-beer { font-size: 1.5em; margin-bottom: 24px; }
+        .over-history { text-align: left; margin-bottom: 24px; }
+        .over-history .label { font-size: 0.82em; color: #6b7280; margin-bottom: 8px; }
+        .history-box { background: #111827; border-radius: 10px; padding: 12px; max-height: 150px; overflow-y: auto; }
+        .chip { display: inline-block; padding: 3px 9px; background: #374151; border-radius: 10px; font-size: 0.8em; margin: 2px; border-left: 3px solid transparent; }
+    </style>
+</head>
+<body>
+<h1>🚇 지하철 게임</h1>
+<p class="subtitle">노선의 역을 말하세요. 못 말하면 패배!</p>
+<div id="app"></div>
+
+<script>
+// ── 노선 데이터 ──────────────────────────────────────────────────
+
+const LINE_COLORS = {
+    '1호선':'#0052A4','2호선':'#00A84D','3호선':'#EF7C1C',
+    '4호선':'#00A5DE','5호선':'#996CAC','6호선':'#CD7C2F',
+    '7호선':'#747F00','8호선':'#E6186C','9호선':'#A0522D',
+    '수인분당선':'#FABE00','경의중앙선':'#77C4A3',
+    '경춘선':'#0C8E72','신분당선':'#D4003B','공항철도':'#4169E1',
+};
+
+const PLAYER_COLORS = ['#ef4444','#3b82f6','#22c55e','#a855f7','#f97316','#ec4899'];
+
+const RAW_LINES = {
+    '1호선': ['소요산','동두천','보산','동두천중앙','지행','덕정','덕계','양주','녹양','가능','의정부','회룡','망월사','도봉산','도봉','방학','창동','녹천','월계','광운대','석계','신이문','외대앞','회기','청량리','제기동','신설동','동묘앞','동대문','종로5가','종로3가','종각','시청','서울역','남영','용산','노량진','대방','신길','영등포','신도림','구로','구일','개봉','오류동','온수','역곡','소사','부천','중동','송내','부개','부평','백운','동암','간석','주안','도화','제물포','도원','동인천','인천'],
+    '2호선': ['시청','을지로입구','을지로3가','을지로4가','동대문역사문화공원','신당','상왕십리','왕십리','한양대','뚝섬','성수','건대입구','구의','강변','잠실나루','잠실','잠실새내','종합운동장','삼성','선릉','역삼','강남','교대','서초','방배','사당','낙성대','서울대입구','봉천','신림','신대방','구로디지털단지','대림','신도림','문래','영등포구청','당산','합정','홍대입구','신촌','이대','아현','충정로'],
+    '3호선': ['대화','주엽','정발산','마두','백석','대곡','화정','원당','원흥','삼송','지축','구파발','연신내','불광','녹번','홍제','무악재','독립문','경복궁','안국','종로3가','을지로3가','충무로','동대입구','약수','금호','옥수','압구정','신사','잠원','고속터미널','교대','남부터미널','양재','매봉','도곡','대치','학여울','대청','일원','수서','가락시장','경찰병원','오금'],
+    '4호선': ['당고개','상계','노원','창동','쌍문','수유','미아','미아사거리','길음','성신여대입구','한성대입구','혜화','동대문','동대문역사문화공원','충무로','명동','회현','서울역','숙대입구','삼각지','신용산','이촌','동작','이수','사당','남태령','선바위','경마공원','대공원','과천','정부과천청사','인덕원','평촌','범계','금정','산본','수리산','대야미','반월','상록수','한대앞','중앙','고잔','초지','안산','신길온천','정왕','오이도'],
+    '5호선': ['방화','개화산','김포공항','송정','마곡','발산','우장산','화곡','까치산','신정','목동','오목교','양평','영등포구청','영등포시장','신길','여의도','여의나루','마포','공덕','애오개','충정로','서대문','광화문','종로3가','을지로4가','동대문역사문화공원','청구','신금호','행당','왕십리','마장','답십리','장한평','군자','아차산','광나루','천호','강동','길동','굽은다리','명일','고덕','상일동'],
+    '6호선': ['응암','역촌','불광','독바위','연신내','구산','새절','증산','디지털미디어시티','월드컵경기장','마포구청','망원','합정','상수','광흥창','대흥','공덕','효창공원앞','삼각지','녹사평','이태원','한강진','버티고개','약수','청구','신당','동묘앞','창신','보문','안암','고려대','월곡','상월곡','돌곶이','석계','태릉입구','화랑대','봉화산','신내'],
+    '7호선': ['장암','도봉산','수락산','마들','노원','중계','하계','공릉','태릉입구','먹골','중화','상봉','면목','사가정','용마산','중곡','군자','어린이대공원','건대입구','뚝섬유원지','청담','강남구청','학동','논현','반포','고속터미널','내방','이수','대림','신풍','보라매','신대방삼거리','장승배기','상도','숭실대입구','남성'],
+    '8호선': ['암사','천호','강동구청','몽촌토성','잠실','석촌','송파','가락시장','문정','장지','복정','산성','남한산성입구','단대오거리','신흥','수진','모란'],
+    '9호선': ['개화','김포공항','공항시장','신방화','마곡나루','양천향교','가양','증미','등촌','염창','신목동','선유도','당산','국회의사당','여의도','샛강','노량진','노들','흑석','동작','구반포','신반포','고속터미널','사평','신논현','언주','선정릉','삼성중앙','봉은사','종합운동장','삼전','석촌고분','석촌','송파나루','한성백제','올림픽공원','둔촌오거리','중앙보훈병원'],
+    '수인분당선': ['인천','신포','숭의','인하대','송도','연수','원인재','남동인더스파크','호구포','인천논현','소래포구','월곶','달월','오이도','정왕','신길온천','안산','초지','고잔','중앙','한대앞','사리','야목','어천','오목천','고색','수원','매교','수원시청','매탄권선','망포','영통','청명','상갈','기흥','신갈','구성','보정','죽전','오리','미금','정자','판교','이매','야탑','모란','가천대','태평','복정','수서','대모산입구','개포동','구룡','도곡','한티','선릉','선정릉','강남구청','압구정로데오','서울숲','왕십리'],
+    '경의중앙선': ['문산','파주','야당','탄현','금릉','금촌','운정','능곡','행신','강매','화전','수색','디지털미디어시티','가좌','홍대입구','서강대','공덕','서울역','효창공원앞','용산','이촌','서빙고','한남','옥수','응봉','왕십리','청량리','회기','중랑','상봉','망우','양원','구리','도농','양정','덕소','도심','팔당','운길산','양수','신원','국수','아신','오빈','양평','원덕','용문','지평'],
+    '경춘선': ['청량리','회기','중랑','상봉','망우','갈매','별내','퇴계원','사릉','금곡','평내호평','천마산','마석','대성리','청평','상천','가평','굴봉산','백양리','강촌','김유정','남춘천','춘천'],
+    '신분당선': ['신사','논현','신논현','강남','양재','양재시민의숲','청계산입구','판교','정자','미금','동천','수지구청','성복','상현','광교중앙','광교'],
+    '공항철도': ['서울역','공덕','홍대입구','디지털미디어시티','마곡나루','김포공항','계양','검암','운서','공항화물청사','인천공항1터미널','인천공항2터미널'],
+};
+
+const LINE_SETS = {};
+for (const [line, arr] of Object.entries(RAW_LINES)) {
+    LINE_SETS[line] = new Set(arr);
+}
+
+// ── 게임 상태 ─────────────────────────────────────────────────────
+
+function freshState(keep = {}) {
+    return {
+        phase: 'setup',
+        playerCount: keep.playerCount ?? 2,
+        timerEnabled: keep.timerEnabled ?? false,
+        timerDuration: keep.timerDuration ?? 10,
+        currentPlayer: 0,
+        currentLine: null,
+        usedStations: new Set(),
+        history: [],
+        loser: null,
+        pendingXferLine: null,   // 환승 신청 시 선택된 노선
+        xferOpen: false,         // 환승 패널 열림 여부
+        timeLeft: keep.timerDuration ?? 10,
+    };
+}
+
+let S = freshState();
+
+// ── 타이머 ────────────────────────────────────────────────────────
+
+let timerIv = null;
+
+function stopTimer() { clearInterval(timerIv); timerIv = null; }
+
+function startTimer() {
+    stopTimer();
+    if (!S.timerEnabled) return;
+    S.timeLeft = S.timerDuration;
+    drawTimer();
+    timerIv = setInterval(() => {
+        S.timeLeft = Math.max(0, S.timeLeft - 0.1);
+        drawTimer();
+        if (S.timeLeft <= 0) { stopTimer(); endGame(S.currentPlayer); }
+    }, 100);
+}
+
+function drawTimer() {
+    const bar = document.getElementById('timerBar');
+    if (!bar) return;
+    const pct = (S.timeLeft / S.timerDuration) * 100;
+    bar.style.width = pct + '%';
+    bar.className = 'timer-bar' + (pct < 30 ? ' danger' : pct < 55 ? ' warn' : '');
+}
+
+// ── 로직 ──────────────────────────────────────────────────────────
+
+function selectLine(line) {
+    S.currentLine = line;
+    S.phase = 'playing';
+    S.currentPlayer = 1 % S.playerCount;
+    startTimer();
+    render();
+}
+
+function submitStation(raw) {
+    const st = raw.trim().replace(/역$/, '');
+    if (!st) return;
+    clearErr();
+
+    // 현재 노선 검증
+    if (!LINE_SETS[S.currentLine].has(st)) {
+        return setErr(`"${st}"은(는) ${S.currentLine}에 없는 역이에요!`);
+    }
+    if (S.usedStations.has(st)) {
+        return setErr(`"${st}"은(는) 이미 나온 역이에요!`);
+    }
+
+    // 환승 신청 시: 해당 역이 목표 노선에도 있는지 확인
+    if (S.pendingXferLine) {
+        if (!LINE_SETS[S.pendingXferLine].has(st)) {
+            return setErr(`"${st}"은(는) ${S.pendingXferLine}에 없는 역이에요!`);
+        }
+        // 환승 성공
+        stopTimer();
+        S.usedStations.add(st);
+        S.history.push({ station: st, player: S.currentPlayer, line: S.currentLine, xferTo: S.pendingXferLine });
+        S.currentLine = S.pendingXferLine;
+        nextTurn();
+        return;
+    }
+
+    // 일반 제출
+    stopTimer();
+    S.usedStations.add(st);
+    S.history.push({ station: st, player: S.currentPlayer, line: S.currentLine });
+    nextTurn();
+}
+
+function nextTurn() {
+    S.currentPlayer = (S.currentPlayer + 1) % S.playerCount;
+    S.pendingXferLine = null;
+    S.xferOpen = false;
+    startTimer();
+    render();
+}
+
+function giveUp() { stopTimer(); endGame(S.currentPlayer); }
+
+function endGame(loserIdx) {
+    stopTimer();
+    S.loser = loserIdx;
+    S.phase = 'over';
+    render();
+}
+
+// ── 유틸 ──────────────────────────────────────────────────────────
+
+let errTm;
+function setErr(msg) {
+    const el = document.getElementById('err');
+    if (el) el.textContent = msg;
+    clearTimeout(errTm);
+    errTm = setTimeout(clearErr, 2800);
+}
+function clearErr() { const el = document.getElementById('err'); if (el) el.textContent = ''; }
+
+function pName(i) { return `플레이어 ${i + 1}`; }
+function pColor(i) { return PLAYER_COLORS[i % PLAYER_COLORS.length]; }
+
+function dotHTML(line, size = 38) {
+    const c = LINE_COLORS[line] || '#888';
+    const label = line
+        .replace('수인분당선','분당').replace('경의중앙선','경의중')
+        .replace('경춘선','경춘').replace('신분당선','신분당')
+        .replace('공항철도','공항').replace('호선','');
+    return `<div class="line-dot" style="background:${c};width:${size}px;height:${size}px">${label}</div>`;
+}
+
+// ── 렌더 ──────────────────────────────────────────────────────────
+
+function render() {
+    const app = document.getElementById('app');
+    if      (S.phase === 'setup')       app.innerHTML = tmplSetup();
+    else if (S.phase === 'line-select') app.innerHTML = tmplLineSelect();
+    else if (S.phase === 'playing')     app.innerHTML = tmplPlaying();
+    else if (S.phase === 'over')        app.innerHTML = tmplOver();
+    wire();
+}
+
+function tmplSetup() {
+    return `<div class="card" style="text-align:center">
+        <h2 style="margin-bottom:8px">🚇 지하철 게임</h2>
+        <p>몇 명이서 플레이할까요?</p>
+        <div class="counter-row">
+            <button class="count-btn" id="dec">−</button>
+            <div class="count-num" id="cnt">${S.playerCount}</div>
+            <button class="count-btn" id="inc">+</button>
+        </div>
+        <div class="setting-row">
+            <span class="setting-label">⏱ 제한시간</span>
+            <button class="toggle ${S.timerEnabled ? 'on' : ''}" id="timerToggle"></button>
+        </div>
+        <div id="timerConfigWrap" style="${S.timerEnabled ? '' : 'display:none'}">
+            <div class="timer-config">
+                <span>5초</span>
+                <input class="timer-slider" type="range" id="timerSlider" min="5" max="60" step="5" value="${S.timerDuration}">
+                <span>60초</span>
+                <span class="timer-val" id="timerVal">${S.timerDuration}초</span>
+            </div>
+        </div>
+        <div style="margin-top:20px">
+            <button class="btn btn-primary" id="goSetup" style="width:100%;padding:14px;font-size:1em">게임 시작</button>
+        </div>
+    </div>`;
+}
+
+function tmplLineSelect() {
+    const lines = Object.keys(LINE_COLORS);
+    return `
+    <div class="player-banner" style="background:${pColor(0)}">${pName(0)} — 노선을 선택하세요!</div>
+    <p style="text-align:center;color:#6b7280;font-size:0.82em;margin-bottom:4px">선택한 노선의 역을 돌아가며 말합니다</p>
+    <div class="line-grid">
+        ${lines.map(l => `<button class="line-btn" style="background:${LINE_COLORS[l]}" data-line="${l}">${l}<br><span style="font-size:0.75em;opacity:0.85">${RAW_LINES[l].length}개 역</span></button>`).join('')}
+    </div>`;
+}
+
+function tmplPlaying() {
+    const p = S.currentPlayer;
+    const otherLines = Object.keys(LINE_COLORS).filter(l => l !== S.currentLine);
+    return `
+    <div class="player-banner" style="background:${pColor(p)}">${pName(p)}의 차례</div>
+    <div class="line-bar">
+        ${dotHTML(S.currentLine)}
+        <div>
+            <div class="line-bar-name">${S.currentLine}</div>
+            <div class="line-bar-sub">${RAW_LINES[S.currentLine].length}개 역</div>
+        </div>
+    </div>
+    ${S.timerEnabled ? `<div class="timer-wrap"><div class="timer-bar" id="timerBar" style="width:100%"></div></div>` : ''}
+    <div class="err" id="err"></div>
+    <div class="input-row">
+        <input id="stInp" type="text" placeholder="역 이름 입력..." autofocus autocomplete="off">
+        <button class="btn btn-primary" id="submitBtn">확인</button>
+    </div>
+
+    <div class="xfer-section">
+        <button class="xfer-toggle-btn ${S.xferOpen ? 'active' : ''}" id="xferToggleBtn">
+            ${S.xferOpen ? '🔁 환승 신청 중 (취소하려면 클릭)' : '🔁 환승 신청'}
+        </button>
+        ${S.xferOpen ? `
+        <div class="xfer-panel">
+            <p>환승할 노선을 고른 뒤 해당 역 이름을 입력하고 확인하세요.</p>
+            <div class="xfer-line-grid">
+                ${otherLines.map(l => `
+                    <button class="xfer-line-btn ${S.pendingXferLine === l ? 'selected' : ''}"
+                        style="background:${LINE_COLORS[l]}" data-xfer="${l}">${l}</button>
+                `).join('')}
+            </div>
+            ${S.pendingXferLine ? `<div class="xfer-selected-info">→ ${S.pendingXferLine}으로 환승 예정</div>` : ''}
+        </div>` : ''}
+    </div>
+
+    <div style="margin-top:10px">
+        <button class="btn btn-ghost" id="giveUpBtn" style="width:100%">😵 못 하겠어요 (패배 인정)</button>
+    </div>`;
+}
+
+function tmplOver() {
+    const li = S.loser;
+    return `
+    <div class="over-card">
+        <h2>🍺 게임 종료!</h2>
+        <div class="over-loser" style="color:${pColor(li)}">${pName(li)} 패배!</div>
+        <div class="over-beer">${pName(li)}은(는) 술 마세요 🍺🍺🍺</div>
+        <div class="over-history">
+            <div class="label">역 기록 — 총 ${S.history.length}개</div>
+            <div class="history-box">
+                ${S.history.length
+                    ? S.history.map(h =>
+                        `<span class="chip" style="border-left-color:${pColor(h.player)}" title="${pName(h.player)}">${h.station}${h.xferTo ? ` →${h.xferTo}` : ''}</span>`
+                      ).join(' ')
+                    : '<span style="color:#6b7280">아무 역도 나오지 않았어요</span>'
+                }
+            </div>
+        </div>
+        <button class="btn btn-primary" id="restartBtn" style="width:100%;padding:14px;font-size:1em">다시 하기</button>
+    </div>`;
+}
+
+// ── 이벤트 ────────────────────────────────────────────────────────
+
+function wire() {
+    // Setup
+    const dec = document.getElementById('dec');
+    const inc = document.getElementById('inc');
+    const cnt = document.getElementById('cnt');
+    const tt  = document.getElementById('timerToggle');
+    const sl  = document.getElementById('timerSlider');
+    const tv  = document.getElementById('timerVal');
+    const go  = document.getElementById('goSetup');
+    if (dec) dec.onclick = () => { if (S.playerCount > 2) { S.playerCount--; cnt.textContent = S.playerCount; } };
+    if (inc) inc.onclick = () => { if (S.playerCount < 6) { S.playerCount++; cnt.textContent = S.playerCount; } };
+    if (tt)  tt.onclick  = () => {
+        S.timerEnabled = !S.timerEnabled;
+        tt.className = 'toggle' + (S.timerEnabled ? ' on' : '');
+        document.getElementById('timerConfigWrap').style.display = S.timerEnabled ? '' : 'none';
+    };
+    if (sl)  sl.oninput  = () => { S.timerDuration = +sl.value; tv.textContent = sl.value + '초'; };
+    if (go)  go.onclick  = () => { S.phase = 'line-select'; render(); };
+
+    // Line select
+    document.querySelectorAll('[data-line]').forEach(b => { b.onclick = () => selectLine(b.dataset.line); });
+
+    // Playing
+    const inp = document.getElementById('stInp');
+    const sub = document.getElementById('submitBtn');
+    const gu  = document.getElementById('giveUpBtn');
+    const xt  = document.getElementById('xferToggleBtn');
+    if (inp) {
+        inp.focus();
+        inp.onkeydown = e => { if (e.key === 'Enter') { submitStation(inp.value); inp.value = ''; } };
+    }
+    if (sub) sub.onclick = () => {
+        const i = document.getElementById('stInp');
+        if (i) { submitStation(i.value); i.value = ''; }
+    };
+    if (gu) gu.onclick = giveUp;
+    if (xt) xt.onclick = () => {
+        S.xferOpen = !S.xferOpen;
+        if (!S.xferOpen) S.pendingXferLine = null;
+        render();
+        const i = document.getElementById('stInp');
+        if (i) i.focus();
+    };
+
+    // 환승 노선 선택
+    document.querySelectorAll('[data-xfer]').forEach(b => {
+        b.onclick = () => {
+            S.pendingXferLine = b.dataset.xfer;
+            render();
+            const i = document.getElementById('stInp');
+            if (i) i.focus();
+        };
+    });
+
+    // Restart
+    const rb = document.getElementById('restartBtn');
+    if (rb) rb.onclick = () => {
+        stopTimer();
+        S = freshState({ playerCount: S.playerCount, timerEnabled: S.timerEnabled, timerDuration: S.timerDuration });
+        render();
+    };
+
+    if (S.phase === 'playing' && S.timerEnabled && timerIv) drawTimer();
+}
+
+render();
+</script>
+</body>
+</html>
