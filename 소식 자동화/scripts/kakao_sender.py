@@ -21,13 +21,19 @@ def refresh_access_token(rest_api_key: str, refresh_token: str) -> str:
     payload = response.json()
 
     # 카카오는 refresh token 만료(약 60일)가 가까워지면 응답에 새 refresh token을
-    # 함께 준다. 코드가 GitHub Secret을 대신 바꿔줄 수는 없으니, 새 값을 로그로
-    # 크게 알려서 사용자가 직접 갱신할 기회를 준다.
+    # 함께 준다. 코드가 GitHub Secret을 대신 바꿔줄 수는 없으니 사용자에게 알려야
+    # 하지만, 이 저장소는 public이라 Actions 로그도 전세계에 공개된다. 전체 값을
+    # 찍으면 토큰이 그대로 유출되므로 마지막 6자리만 보여주고, 나머지는 사용자가
+    # Task 11의 인가 코드 로그인 절차를 다시 진행해 직접 발급받도록 안내한다.
     new_refresh_token = payload.get("refresh_token")
     if new_refresh_token:
+        token_suffix = new_refresh_token[-6:]
         print(
-            "⚠️ 카카오 refresh token이 갱신되었습니다 - GitHub Secrets의 "
-            f"KAKAO_REFRESH_TOKEN을 새 값으로 업데이트해주세요: {new_refresh_token}",
+            f"⚠️ 카카오 refresh token이 갱신되었습니다 (...{token_suffix}). GitHub "
+            "Secrets의 KAKAO_REFRESH_TOKEN을 업데이트해야 합니다 - 보안을 위해 "
+            "전체 값은 로그에 남기지 않으니, Task 11의 카카오 인가 코드 로그인 "
+            "절차를 다시 진행해 본인 계정에서 직접 새 refresh_token을 "
+            "발급받아주세요.",
             file=sys.stderr,
         )
 

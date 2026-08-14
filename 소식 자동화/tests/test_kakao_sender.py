@@ -33,7 +33,11 @@ def test_refresh_access_token_warns_when_refresh_token_is_rotated(capsys):
     assert token == "new-token"
     stderr = capsys.readouterr().err
     assert "KAKAO_REFRESH_TOKEN" in stderr
-    assert "rotated-refresh-token" in stderr
+    # 저장소가 public이므로 전체 토큰 값이 로그에 찍히면 안 된다. 마지막 6자리
+    # 조각과 갱신 안내 문구만 남고, 재구성 가능한 전체 값은 없어야 한다.
+    assert "rotated-refresh-token" not in stderr
+    assert "-token" in stderr  # 새 refresh token의 마지막 6자리 (...-token)
+    assert "갱신되었습니다" in stderr
 
 
 def test_refresh_access_token_stays_quiet_when_token_is_not_rotated(capsys):
