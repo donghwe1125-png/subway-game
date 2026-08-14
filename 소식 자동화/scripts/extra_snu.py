@@ -11,6 +11,14 @@ ID_RE = re.compile(r"global\.write\('([^']+)'")
 
 def parse_extra_snu_programs(html: str) -> list[NoticeItem]:
     soup = BeautifulSoup(html, "html.parser")
+    # 목록 틀(.lica_wrap)도 없고 프로그램 링크도 하나 없으면 NetFunnel 대기열이나
+    # 리다이렉트 페이지를 파싱한 것이다 -- "새 프로그램 없음"으로 넘기면 안 된다.
+    if soup.select_one(".lica_wrap") is None and not soup.select("a.tit.ellipsis"):
+        raise RuntimeError(
+            "extra.snu.ac.kr 프로그램 목록 구조(.lica_wrap)를 찾을 수 없습니다 "
+            "- NetFunnel 대기 페이지이거나 사이트 구조가 변경되었을 수 있습니다"
+        )
+
     seen_ids: set[str] = set()
     items = []
 

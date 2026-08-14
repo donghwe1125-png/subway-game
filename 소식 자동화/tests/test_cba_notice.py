@@ -1,14 +1,15 @@
 import os
 
+import pytest
+
 from scripts.cba_notice import parse_cba_notices
 
-FIXTURE_PATH = os.path.join(
-    os.path.dirname(__file__), "fixtures", "cba_notice_sample.html"
-)
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+FIXTURE_PATH = os.path.join(FIXTURE_DIR, "cba_notice_sample.html")
 
 
-def _load_fixture() -> str:
-    with open(FIXTURE_PATH, encoding="utf-8") as f:
+def _load_fixture(name: str = "cba_notice_sample.html") -> str:
+    with open(os.path.join(FIXTURE_DIR, name), encoding="utf-8") as f:
         return f.read()
 
 
@@ -32,3 +33,13 @@ def test_parse_cba_notices_second_row_category():
     items = parse_cba_notices(_load_fixture())
     assert items[1].id == "26328"
     assert items[1].meta == "장학"
+
+
+def test_parse_cba_notices_raises_when_board_container_missing():
+    with pytest.raises(RuntimeError, match="div.board table tbody"):
+        parse_cba_notices(_load_fixture("cba_notice_blocked.html"))
+
+
+def test_parse_cba_notices_returns_empty_when_board_exists_but_has_no_rows():
+    # 게시판 틀이 있는데 행이 0건인 것은 정상 상태이므로 예외를 던지면 안 된다
+    assert parse_cba_notices(_load_fixture("cba_notice_empty_board.html")) == []
