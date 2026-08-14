@@ -14,6 +14,13 @@ def _build_raw_email(message_id, subject, sender, date):
     return msg.as_bytes()
 
 
+def test_search_query_matches_snu_senders_without_wildcard():
+    # Gmail의 from:은 와일드카드를 지원하지 않는다. "from:*.snu.ac.kr"은
+    # 대다수인 @snu.ac.kr 발신자를 놓칠 수 있다.
+    assert SEARCH_QUERY == "from:snu.ac.kr newer_than:7d"
+    assert "*" not in SEARCH_QUERY
+
+
 def test_parse_gmail_message_extracts_fields():
     raw = _build_raw_email(
         "<abc123@mail.snu.ac.kr>",
@@ -48,6 +55,7 @@ def test_fetch_gmail_notices_live_uses_imap_search(monkeypatch):
     fake_conn.login.assert_called_once_with("me@gmail.com", "app-pass")
     assert fake_conn.search.call_args[0][1] == "X-GM-RAW"
     # Assert the search query includes the expected search text
+    assert fake_conn.search.call_args[0][2] == '"from:snu.ac.kr newer_than:7d"'
     assert SEARCH_QUERY in fake_conn.search.call_args[0][2]
     # Assert fetch uses BODY.PEEK[HEADER] to avoid marking emails as read
     assert fake_conn.fetch.call_args[0][1] == "(BODY.PEEK[HEADER])"

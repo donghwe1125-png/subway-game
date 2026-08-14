@@ -8,7 +8,9 @@ from email.utils import parsedate_to_datetime
 from scripts.models import NoticeItem
 
 IMAP_HOST = "imap.gmail.com"
-SEARCH_QUERY = "from:*.snu.ac.kr newer_than:7d"
+# Gmail의 from:은 도메인 부분 문자열로 매칭하므로 "*." 없이 써야
+# user@snu.ac.kr과 user@sub.snu.ac.kr을 모두 잡는다.
+SEARCH_QUERY = "from:snu.ac.kr newer_than:7d"
 
 
 def _decode(value: str) -> str:

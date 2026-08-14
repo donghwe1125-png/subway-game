@@ -51,6 +51,10 @@ def main(state_path: str = DEFAULT_STATE_PATH) -> None:
 
     state = state_store.load_state(state_path)
     new_items, failed_sources = collect_new_items(state, SOURCES)
+    # 발송 전에 먼저 저장한다. 전송이 도중에 실패해도 이미 보낸 소식이
+    # 다음 실행에서 다시 쌓여 중복 발송되는 일을 막는다.
+    state_store.save_state(state_path, state)
+
     new_items = summarize_items(new_items, gemini_key)
 
     today = datetime.now(KST).date()
@@ -63,8 +67,6 @@ def main(state_path: str = DEFAULT_STATE_PATH) -> None:
     access_token = refresh_access_token(kakao_key, kakao_refresh)
     for message in messages:
         send_message(access_token, message)
-
-    state_store.save_state(state_path, state)
 
 
 if __name__ == "__main__":
