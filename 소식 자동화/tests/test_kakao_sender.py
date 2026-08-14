@@ -31,3 +31,16 @@ def test_send_message_posts_text_template():
     template = json.loads(called_kwargs["data"]["template_object"])
     assert template["object_type"] == "text"
     assert template["text"] == "안녕하세요"
+
+
+def test_send_message_does_not_truncate_long_text():
+    long_text = "가" * 1500
+    fake_response = MagicMock()
+    fake_response.raise_for_status.return_value = None
+
+    with patch("scripts.kakao_sender.requests.post", return_value=fake_response) as mock_post:
+        send_message("access-token", long_text)
+
+    template = json.loads(mock_post.call_args.kwargs["data"]["template_object"])
+    assert template["text"] == long_text
+    assert len(template["text"]) == 1500

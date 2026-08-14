@@ -21,9 +21,12 @@ def refresh_access_token(rest_api_key: str, refresh_token: str) -> str:
 
 
 def send_message(access_token: str, text: str) -> None:
+    # 길이를 잘라내지 않는다. 분할은 message_formatter가 MAX_CHARS 기준으로 끝내며,
+    # 그래도 너무 길면 카카오가 HTTP 오류로 크게 알려주는 편이 조용히 소식을
+    # 잃는 것보다 낫다.
     template = {
         "object_type": "text",
-        "text": text[:1000],
+        "text": text,
         "link": {"web_url": "https://cba.snu.ac.kr/newsroom/notice?sc=y"},
         "button_title": "바로가기",
     }
