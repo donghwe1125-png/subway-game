@@ -19,6 +19,36 @@ def test_refresh_access_token_posts_expected_params():
     assert called_kwargs["data"]["refresh_token"] == "refresh-token"
 
 
+def test_refresh_access_token_warns_when_refresh_token_is_rotated(capsys):
+    fake_response = MagicMock()
+    fake_response.json.return_value = {
+        "access_token": "new-token",
+        "refresh_token": "rotated-refresh-token",
+    }
+    fake_response.raise_for_status.return_value = None
+
+    with patch("scripts.kakao_sender.requests.post", return_value=fake_response):
+        token = refresh_access_token("rest-key", "refresh-token")
+
+    assert token == "new-token"
+    stderr = capsys.readouterr().err
+    assert "KAKAO_REFRESH_TOKEN" in stderr
+    assert "rotated-refresh-token" in stderr
+
+
+def test_refresh_access_token_stays_quiet_when_token_is_not_rotated(capsys):
+    fake_response = MagicMock()
+    fake_response.json.return_value = {"access_token": "new-token"}
+    fake_response.raise_for_status.return_value = None
+
+    with patch("scripts.kakao_sender.requests.post", return_value=fake_response):
+        refresh_access_token("rest-key", "refresh-token")
+
+    captured = capsys.readouterr()
+    assert "KAKAO_REFRESH_TOKEN" not in captured.err
+    assert captured.err == ""
+
+
 def test_send_message_posts_text_template():
     fake_response = MagicMock()
     fake_response.raise_for_status.return_value = None

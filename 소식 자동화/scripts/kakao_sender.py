@@ -1,4 +1,5 @@
 import json
+import sys
 
 import requests
 
@@ -17,7 +18,20 @@ def refresh_access_token(rest_api_key: str, refresh_token: str) -> str:
         timeout=10,
     )
     response.raise_for_status()
-    return response.json()["access_token"]
+    payload = response.json()
+
+    # 카카오는 refresh token 만료(약 60일)가 가까워지면 응답에 새 refresh token을
+    # 함께 준다. 코드가 GitHub Secret을 대신 바꿔줄 수는 없으니, 새 값을 로그로
+    # 크게 알려서 사용자가 직접 갱신할 기회를 준다.
+    new_refresh_token = payload.get("refresh_token")
+    if new_refresh_token:
+        print(
+            "⚠️ 카카오 refresh token이 갱신되었습니다 - GitHub Secrets의 "
+            f"KAKAO_REFRESH_TOKEN을 새 값으로 업데이트해주세요: {new_refresh_token}",
+            file=sys.stderr,
+        )
+
+    return payload["access_token"]
 
 
 def send_message(access_token: str, text: str) -> None:
