@@ -1,7 +1,7 @@
 from email.message import EmailMessage
 from unittest.mock import MagicMock, patch
 
-from scripts.gmail_notice import fetch_gmail_notices_live, parse_gmail_message
+from scripts.gmail_notice import SEARCH_QUERY, fetch_gmail_notices_live, parse_gmail_message
 
 
 def _build_raw_email(message_id, subject, sender, date):
@@ -47,5 +47,9 @@ def test_fetch_gmail_notices_live_uses_imap_search(monkeypatch):
 
     fake_conn.login.assert_called_once_with("me@gmail.com", "app-pass")
     assert fake_conn.search.call_args[0][1] == "X-GM-RAW"
+    # Assert the search query includes the expected search text
+    assert SEARCH_QUERY in fake_conn.search.call_args[0][2]
+    # Assert fetch uses BODY.PEEK[HEADER] to avoid marking emails as read
+    assert fake_conn.fetch.call_args[0][1] == "(BODY.PEEK[HEADER])"
     assert len(items) == 1
     assert items[0].id == "<xyz@snu.ac.kr>"
