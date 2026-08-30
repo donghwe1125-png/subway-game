@@ -53,13 +53,13 @@ def _many_items(count: int, source: str = "cba") -> list[NoticeItem]:
 
 
 def test_build_digest_messages_splits_long_group_into_multiple_messages():
-    items = _many_items(15)
+    items = _many_items(40)
     messages = build_digest_messages(items, today=date(2026, 8, 17))
 
     assert len(messages) >= 2
     assert all(len(message) <= MAX_CHARS for message in messages)
-    assert f"[학과 공지] 15건 (1/{len(messages)})" in messages[0]
-    assert f"[학과 공지] 15건 ({len(messages)}/{len(messages)})" in messages[-1]
+    assert f"[학과 공지] 40건 (1/{len(messages)})" in messages[0]
+    assert f"[학과 공지] 40건 ({len(messages)}/{len(messages)})" in messages[-1]
 
 
 def test_build_digest_messages_never_drops_an_item():
@@ -87,7 +87,7 @@ def test_build_digest_messages_single_message_group_has_no_part_suffix():
 
 
 def test_build_digest_messages_chunks_each_source_independently():
-    items = _many_items(15) + _many_items(15, source="extra")
+    items = _many_items(40) + _many_items(40, source="extra")
     messages = build_digest_messages(items, today=date(2026, 8, 17))
 
     assert all(len(message) <= MAX_CHARS for message in messages)

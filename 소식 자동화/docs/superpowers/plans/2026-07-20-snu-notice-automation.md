@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **2026-08-17 수정 사항:** 발송 채널을 카카오톡 → **텔레그램**으로 변경했다 (사유는 설계 문서 상단 참고). Task 7~9, 11에서 다루는 "카카오톡 발송" 관련 내용은 최초 계획 당시 기록이며, 실제 구현은 `scripts/telegram_sender.py`(access token 갱신 절차 없이 봇 토큰 + chat_id만 사용, 훨씬 단순함)를 사용한다. `message_formatter.py`의 `MAX_CHARS`도 텔레그램의 더 넉넉한 메시지 길이 제한(4096자)에 맞춰 조정했다.
+
 **Goal:** 경영대학 학과 공지, Gmail로 전달되는 서울대 공지 메일, 비교과 프로그램 신규 항목을 매주 월/목 아침 8시(KST)에 자동으로 모아 Gemini로 한 줄 요약한 뒤 카카오톡 "나에게 보내기"로 발송하는 GitHub Actions 파이프라인을 만든다.
 
 **Architecture:** 세 개의 독립적인 수집 모듈(`cba_notice`, `gmail_notice`, `extra_snu`)이 각각 `NoticeItem` 리스트를 반환하고, `state_store`가 이전 실행 이후의 신규 항목만 걸러낸다. 신규 항목은 `summarize`(Gemini)로 한 줄 요약되고, `message_formatter`가 소스별로 묶어 카카오톡 메시지 문자열 목록을 만들면, `kakao_sender`가 순서대로 발송한다. `main.py`가 이 전체를 조립하며, 한 소스가 실패해도 나머지는 계속 진행한다. GitHub Actions가 cron으로 이 스크립트를 실행하고 끝나면 `state.json`을 커밋한다.

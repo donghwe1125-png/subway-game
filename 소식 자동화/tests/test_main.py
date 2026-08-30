@@ -48,21 +48,18 @@ def test_main_saves_state_even_when_sending_fails(tmp_path, monkeypatch):
     state_path.write_text("{}", encoding="utf-8")
 
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
-    monkeypatch.setenv("KAKAO_REST_API_KEY", "kakao-key")
-    monkeypatch.setenv("KAKAO_REFRESH_TOKEN", "kakao-refresh")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "telegram-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "telegram-chat-id")
 
     monkeypatch.setattr(main_module, "SOURCES", {"cba": _fake_source})
     monkeypatch.setattr(main_module, "summarize_items", lambda items, api_key: items)
-    monkeypatch.setattr(
-        main_module, "refresh_access_token", lambda key, refresh: "access-token"
-    )
 
-    def exploding_send(token, text):
-        raise RuntimeError("kakao down")
+    def exploding_send(bot_token, chat_id, text):
+        raise RuntimeError("telegram down")
 
     monkeypatch.setattr(main_module, "send_message", exploding_send)
 
-    with pytest.raises(RuntimeError, match="kakao down"):
+    with pytest.raises(RuntimeError, match="telegram down"):
         main_module.main(state_path=str(state_path))
 
     # 전송이 실패해도 수집 직후 저장된 seen 목록은 남아 있어야 한다
@@ -75,20 +72,19 @@ def test_main_runs_pipeline_and_saves_state(tmp_path, monkeypatch):
     state_path.write_text("{}", encoding="utf-8")
 
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
-    monkeypatch.setenv("KAKAO_REST_API_KEY", "kakao-key")
-    monkeypatch.setenv("KAKAO_REFRESH_TOKEN", "kakao-refresh")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "telegram-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "telegram-chat-id")
 
     monkeypatch.setattr(main_module, "SOURCES", {"cba": _fake_source})
     monkeypatch.setattr(
         main_module, "summarize_items", lambda items, api_key: items
     )
-    monkeypatch.setattr(
-        main_module, "refresh_access_token", lambda key, refresh: "access-token"
-    )
 
     sent_messages = []
     monkeypatch.setattr(
-        main_module, "send_message", lambda token, text: sent_messages.append(text)
+        main_module,
+        "send_message",
+        lambda bot_token, chat_id, text: sent_messages.append(text),
     )
 
     main_module.main(state_path=str(state_path))
