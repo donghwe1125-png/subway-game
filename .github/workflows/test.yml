@@ -22,3 +22,21 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -v
+
+  pytest-economic-news:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 경제뉴스
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -v
