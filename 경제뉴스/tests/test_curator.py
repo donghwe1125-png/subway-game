@@ -79,7 +79,7 @@ def test_select_and_explain_skips_malformed_entry_but_keeps_valid_ones():
                 "what_happened": "유효한 설명",
                 "why_it_matters": "유효한 이유",
                 "source_name": "BBC",
-                "url": "https://valid",
+                "url": "https://a",
             },
             {
                 "title_kr": "손상된 항목",
@@ -101,6 +101,107 @@ def test_select_and_explain_skips_malformed_entry_but_keeps_valid_ones():
 
     assert len(result) == 1
     assert result[0].title_kr == "유효한 항목"
-    assert result[0].url == "https://valid"
+    assert result[0].url == "https://a"
     # No retry should be needed since JSON was valid
     assert fake_model.generate_content.call_count == 1
+
+
+def test_select_and_explain_retries_when_top_level_is_not_a_list():
+    # Gemini sometimes wraps the array in an object, or returns a single
+    # object instead of an array. That's a shape mismatch, not a per-entry
+    # problem, so it must trigger the same retry path as bad JSON.
+    non_list_response = json.dumps(
+        {
+            "news": [
+                {
+                    "title_kr": "연준 금리 동결",
+                    "what_happened": "설명",
+                    "why_it_matters": "이유",
+                    "source_name": "BBC",
+                    "url": "https://a",
+                }
+            ]
+        }
+    )
+
+    fake_response = MagicMock()
+    fake_response.text = non_list_response
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    assert result == []
+    assert fake_model.generate_content.call_count == 2
+
+
+def test_select_and_explain_caps_result_to_three_items():
+    candidates = [
+        NewsCandidate(source="BBC", title=f"t{i}", summary="s", url=f"https://c{i}")
+        for i in range(5)
+    ]
+    entries = [
+        {
+            "title_kr": f"제목{i}",
+            "what_happened": f"설명{i}" * 10,
+            "why_it_matters": f"이유{i}" * 10,
+            "source_name": "BBC",
+            "url": f"https://c{i}",
+        }
+        for i in range(5)
+    ]
+    fake_response = MagicMock()
+    fake_response.text = json.dumps(entries)
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        result = select_and_explain(candidates, api_key="fake-key")
+
+    assert len(result) == 3
+
+
+def test_select_and_explain_drops_item_with_unrecognized_url():
+    response = json.dumps(
+        [
+            {
+                "title_kr": "유효한 항목",
+                "what_happened": "유효한 설명이 충분히 길게 이어진다.",
+                "why_it_matters": "유효한 이유가 충분히 길게 이어진다.",
+                "source_name": "BBC",
+                "url": "https://a",
+            },
+            {
+                "title_kr": "가짜 url 항목",
+                "what_happened": "후보 목록에는 없는 url을 가진 이상한 항목이다.",
+                "why_it_matters": "환각(hallucination)일 가능성이 높은 항목이다.",
+                "source_name": "CNBC",
+                "url": "https://not-a-real-candidate-url.example",
+            },
+        ]
+    )
+
+    fake_response = MagicMock()
+    fake_response.text = response
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    assert len(result) == 1
+    assert result[0].url == "https://a"
+
+
+def test_select_and_explain_strips_uppercase_json_fence():
+    fake_response = MagicMock()
+    fake_response.text = f"```JSON\n{VALID_JSON_RESPONSE}\n```"
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    assert len(result) == 1
+    assert result[0].title_kr == "연준 금리 동결"

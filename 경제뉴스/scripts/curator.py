@@ -1,11 +1,16 @@
 import json
 import os
+import re
 
 import google.generativeai as genai
 
 from scripts.models import DigestItem, NewsCandidate
 
 DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+
+# 프롬프트에 "가장 중요한 세계 경제뉴스 3개"를 요청하지만, 모델이 이를 넘겨서
+# 반환하는 경우를 대비해 코드 레벨에서도 상한을 강제한다.
+MAX_ITEMS = 3
 
 PROMPT_TEMPLATE = """\
 너는 세계 경제뉴스를 한 번도 안 읽어본 한국인 독자를 위해 뉴스를 골라 설명해주는 어시스턴트야.
@@ -41,6 +46,7 @@ def _build_prompt(candidates: list[NewsCandidate]) -> str:
             "title": c.title,
             "summary": c.summary[:200],
             "url": c.url,
+            "published": c.published,
         }
         for c in candidates
     ]
@@ -49,13 +55,30 @@ def _build_prompt(candidates: list[NewsCandidate]) -> str:
     )
 
 
+def _extract_json_payload(text: str) -> str:
+    """마크다운 코드펜스(``` json / ```JSON 등)와 그 앞뒤의 잡담을 제거한다."""
+    fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.S | re.I)
+    if fence_match:
+        return fence_match.group(1).strip()
+    return text.strip()
+
+
 def _parse_response(text: str) -> list[DigestItem]:
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.strip("`")
-        if cleaned.startswith("json"):
-            cleaned = cleaned[4:]
-    data = json.loads(cleaned)
+    cleaned = _extract_json_payload(text)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # 코드펜스도 없고 텍스트 전체도 곧바로 JSON으로 파싱되지 않는 경우,
+        # 응답 어딘가에 박혀 있는 첫 JSON 배열 구간만이라도 건져본다.
+        array_match = re.search(r"\[.*\]", text, re.S)
+        if not array_match:
+            raise
+        data = json.loads(array_match.group(0))
+
+    if not isinstance(data, list):
+        # 최상위가 배열이 아니면(예: {"news": [...]}) 개별 항목을 훑는 것 자체가
+        # 무의미하다. 여기서 실패시켜 호출부의 재시도 로직을 타게 한다.
+        raise TypeError(f"expected a JSON array at top level, got {type(data).__name__}")
 
     items = []
     for i, entry in enumerate(data):
@@ -83,11 +106,19 @@ def select_and_explain(
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(model_name)
     prompt = _build_prompt(candidates)
+    valid_urls = {c.url for c in candidates}
 
     for attempt in range(2):
         try:
             response = model.generate_content(prompt)
-            return _parse_response(response.text or "")
+            items = _parse_response(response.text or "")
+            filtered = []
+            for item in items:
+                if item.url not in valid_urls:
+                    print(f"[curator] dropped item with unrecognized url: {item.url}")
+                    continue
+                filtered.append(item)
+            return filtered[:MAX_ITEMS]
         except (json.JSONDecodeError, KeyError, TypeError) as exc:
             print(f"[curator] parse failed (attempt {attempt + 1}): {exc}")
         except Exception as exc:
