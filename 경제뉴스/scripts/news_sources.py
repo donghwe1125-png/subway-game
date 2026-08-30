@@ -11,6 +11,10 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
 
+# 피드 하나당 가져올 최대 기사 수. Gemini 프롬프트 하나에 통째로 넣어 보내므로
+# 피드별 항목 수가 무제한이 되지 않도록 여기서 상한을 둔다.
+MAX_ENTRIES_PER_FEED = 20
+
 # 언론사가 RSS 주소를 바꾸면 여기만 고치면 된다.
 FEEDS: dict[str, tuple[str, str]] = {
     "bbc": ("BBC", "http://feeds.bbci.co.uk/news/business/rss.xml"),
@@ -37,7 +41,7 @@ def fetch_feed_live(feed_key: str) -> list[NewsCandidate]:
             url=entry.get("link", ""),
             published=entry.get("published", ""),
         )
-        for entry in parsed.entries
+        for entry in parsed.entries[:MAX_ENTRIES_PER_FEED]
     ]
 
 

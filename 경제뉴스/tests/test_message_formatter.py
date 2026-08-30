@@ -35,6 +35,24 @@ def test_build_digest_message_splits_when_exceeding_max_chars():
         assert len(message) <= MAX_CHARS + 200
 
 
+def test_build_digest_message_labels_each_part_when_split():
+    items = [_item(1, why_len=800), _item(2, why_len=800), _item(3, why_len=800)]
+    messages = build_digest_message(items, date(2026, 8, 30))
+
+    assert len(messages) == 3
+    total = len(messages)
+    for index, message in enumerate(messages, start=1):
+        assert f"({index}/{total})" in message
+
+
+def test_build_digest_message_has_no_part_label_when_single_message():
+    items = [_item(1), _item(2), _item(3)]
+    messages = build_digest_message(items, date(2026, 8, 30))
+
+    assert len(messages) == 1
+    assert "(1/1)" not in messages[0]
+
+
 def test_build_error_message_returns_warning_text():
     message = build_error_message("오늘은 뉴스를 가져오지 못했어요")
 

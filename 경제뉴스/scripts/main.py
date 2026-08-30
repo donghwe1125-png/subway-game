@@ -44,8 +44,20 @@ def main() -> None:
             build_error_message("오늘은 뉴스를 가져오지 못했어요. 내일 다시 시도할게요.")
         ]
 
-    for message in messages:
-        send_message(telegram_bot_token, telegram_chat_id, message)
+    failures: list[tuple[int, Exception]] = []
+    for index, message in enumerate(messages, start=1):
+        try:
+            send_message(telegram_bot_token, telegram_chat_id, message)
+        except Exception as exc:
+            print(f"[main] failed to send message {index}/{len(messages)}: {exc}", file=sys.stderr)
+            failures.append((index, exc))
+
+    if failures:
+        failed_indexes = ", ".join(str(i) for i, _ in failures)
+        raise RuntimeError(
+            f"{len(failures)} of {len(messages)} message(s) failed to send "
+            f"(indexes: {failed_indexes})"
+        )
 
 
 if __name__ == "__main__":

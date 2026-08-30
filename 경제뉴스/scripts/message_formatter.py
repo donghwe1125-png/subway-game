@@ -45,9 +45,17 @@ def build_digest_message(items: list[DigestItem], today: date) -> list[str]:
     if current:
         chunks.append(current)
 
+    total_parts = len(chunks)
     messages = []
-    for index, chunk in enumerate(chunks):
-        prefix = f"{header}\n\n" if index == 0 else ""
+    for index, chunk in enumerate(chunks, start=1):
+        if total_parts > 1:
+            prefix = (
+                f"{header} ({index}/{total_parts})\n\n"
+                if index == 1
+                else f"({index}/{total_parts})\n\n"
+            )
+        else:
+            prefix = f"{header}\n\n"
         messages.append(prefix + SEPARATOR.join(chunk))
     return messages
 
