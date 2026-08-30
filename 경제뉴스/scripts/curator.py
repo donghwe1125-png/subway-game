@@ -56,16 +56,22 @@ def _parse_response(text: str) -> list[DigestItem]:
         if cleaned.startswith("json"):
             cleaned = cleaned[4:]
     data = json.loads(cleaned)
-    return [
-        DigestItem(
-            title_kr=entry["title_kr"],
-            what_happened=entry["what_happened"],
-            why_it_matters=entry["why_it_matters"],
-            source_name=entry["source_name"],
-            url=entry["url"],
-        )
-        for entry in data
-    ]
+
+    items = []
+    for i, entry in enumerate(data):
+        try:
+            item = DigestItem(
+                title_kr=entry["title_kr"],
+                what_happened=entry["what_happened"],
+                why_it_matters=entry["why_it_matters"],
+                source_name=entry["source_name"],
+                url=entry["url"],
+            )
+            items.append(item)
+        except (KeyError, TypeError) as exc:
+            print(f"[curator] entry {i} skipped: {exc}")
+
+    return items
 
 
 def select_and_explain(

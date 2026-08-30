@@ -69,3 +69,38 @@ def test_select_and_explain_returns_empty_list_without_calling_gemini_when_no_ca
 
     assert result == []
     mock_cls.assert_not_called()
+
+
+def test_select_and_explain_skips_malformed_entry_but_keeps_valid_ones():
+    partial_response = json.dumps(
+        [
+            {
+                "title_kr": "유효한 항목",
+                "what_happened": "유효한 설명",
+                "why_it_matters": "유효한 이유",
+                "source_name": "BBC",
+                "url": "https://valid",
+            },
+            {
+                "title_kr": "손상된 항목",
+                "what_happened": "손상된 설명",
+                "why_it_matters": "손상된 이유",
+                # Missing "url" field
+                "source_name": "CNBC",
+            },
+        ]
+    )
+
+    fake_response = MagicMock()
+    fake_response.text = partial_response
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    assert len(result) == 1
+    assert result[0].title_kr == "유효한 항목"
+    assert result[0].url == "https://valid"
+    # No retry should be needed since JSON was valid
+    assert fake_model.generate_content.call_count == 1
