@@ -6,7 +6,7 @@ import google.generativeai as genai
 
 from scripts.models import DigestItem, NewsCandidate
 
-DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 
 # 프롬프트에 "가장 중요한 세계 경제뉴스 3개"를 요청하지만, 모델이 이를 넘겨서
 # 반환하는 경우를 대비해 코드 레벨에서도 상한을 강제한다.
