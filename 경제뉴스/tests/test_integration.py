@@ -57,7 +57,7 @@ FAKE_GEMINI_JSON = json.dumps(
 )
 
 
-def test_main_end_to_end_through_real_module_chain(monkeypatch):
+def test_main_end_to_end_through_real_module_chain(tmp_path, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "telegram-token")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "telegram-chat-id")
@@ -79,7 +79,7 @@ def test_main_end_to_end_through_real_module_chain(monkeypatch):
     ) as mock_post, patch(
         "google.generativeai.GenerativeModel", return_value=fake_model
     ):
-        main_module.main()
+        main_module.main(state_path=str(tmp_path / "state.json"))
 
     assert mock_post.called
     sent_texts = [call.kwargs["json"]["text"] for call in mock_post.call_args_list]
