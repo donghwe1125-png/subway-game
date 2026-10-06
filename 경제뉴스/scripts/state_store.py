@@ -25,6 +25,15 @@ def filter_unsent(
     return [c for c in candidates if c.url not in sent_urls]
 
 
+def already_sent_today(sent_urls: dict[str, str], today: date) -> bool:
+    """오늘 날짜로 기록된 기사가 하나라도 있으면 오늘 다이제스트는 이미 나갔다.
+
+    하루에 예약 트리거를 여러 번 걸어두고(발송 시각을 맞추기 위한 보험)
+    그중 한 번만 실제로 보내기 위한 판단에 쓴다.
+    """
+    return today.isoformat() in sent_urls.values()
+
+
 def record_sent(
     sent_urls: dict[str, str],
     items: list[DigestItem],

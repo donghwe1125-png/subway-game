@@ -2,6 +2,7 @@ from datetime import date
 
 from scripts.models import DigestItem, NewsCandidate
 from scripts.state_store import (
+    already_sent_today,
     filter_unsent,
     load_sent_urls,
     record_sent,
@@ -59,6 +60,22 @@ def test_record_sent_adds_items_with_todays_date():
     result = record_sent({}, items, today=date(2026, 8, 30))
 
     assert result == {"https://a": "2026-08-30"}
+
+
+def test_already_sent_today_is_true_when_an_entry_carries_todays_date():
+    sent_urls = {"https://a": "2026-10-05", "https://b": "2026-10-06"}
+
+    assert already_sent_today(sent_urls, date(2026, 10, 6)) is True
+
+
+def test_already_sent_today_is_false_when_only_older_entries_exist():
+    sent_urls = {"https://a": "2026-10-04", "https://b": "2026-10-05"}
+
+    assert already_sent_today(sent_urls, date(2026, 10, 6)) is False
+
+
+def test_already_sent_today_is_false_for_empty_state():
+    assert already_sent_today({}, date(2026, 10, 6)) is False
 
 
 def test_record_sent_prunes_entries_older_than_keep_days():
