@@ -1,0 +1,35 @@
+name: Gemini Model Probe (temporary)
+
+# 일회용 진단: 이 API 키로 어떤 Gemini 모델이 무료로 호출되는지 확인한다.
+# 텔레그램 발송 없음. 확인이 끝나면 이 파일은 삭제한다.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q google-generativeai==0.8.6
+      - name: Probe models
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: python
+        run: |
+          import os, time
+          import google.generativeai as genai
+          genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+          names = [m.name.removeprefix("models/") for m in genai.list_models()
+                   if "generateContent" in m.supported_generation_methods]
+          print("AVAILABLE:", ", ".join(names))
+          for name in names:
+              if "flash" not in name or any(x in name for x in ("tts", "image", "live", "audio", "embedding")):
+                  continue
+              try:
+                  r = genai.GenerativeModel(name).generate_content("Reply with OK")
+                  print(f"PROBE OK    {name}: {(r.text or '').strip()[:20]}")
+              except Exception as e:
+                  print(f"PROBE FAIL  {name}: {str(e).splitlines()[0][:120]}")
+              time.sleep(2)
