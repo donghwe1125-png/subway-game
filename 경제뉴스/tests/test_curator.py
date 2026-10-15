@@ -1,7 +1,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from scripts.curator import select_and_explain
+from scripts.curator import FALLBACK_MODELS, select_and_explain
 from scripts.models import NewsCandidate
 
 SAMPLE_CANDIDATES = [
@@ -60,7 +60,33 @@ def test_select_and_explain_retries_once_then_gives_up_on_bad_json():
         result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
 
     assert result == []
-    assert fake_model.generate_content.call_count == 2
+    # 모델마다 한 번씩 재시도한 뒤 다음 모델로 넘어간다.
+    assert fake_model.generate_content.call_count == 2 * len(FALLBACK_MODELS)
+
+
+def test_select_and_explain_falls_back_to_next_model_when_first_is_rejected():
+    rejected_model = MagicMock()
+    rejected_model.generate_content.side_effect = Exception("429 quota exceeded")
+    ok_response = MagicMock()
+    ok_response.text = VALID_JSON_RESPONSE
+    ok_model = MagicMock()
+    ok_model.generate_content.return_value = ok_response
+
+    with patch(
+        "scripts.curator.genai.GenerativeModel", side_effect=[rejected_model, ok_model]
+    ) as mock_cls:
+        result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    assert [item.url for item in result] == ["https://a"]
+    # 거절(429 등)은 같은 모델로 즉시 재시도해도 소용없으니 바로 다음 모델로 간다.
+    assert rejected_model.generate_content.call_count == 1
+    assert [c.args[0] for c in mock_cls.call_args_list] == list(FALLBACK_MODELS[:2])
+
+
+def test_default_model_is_one_that_handles_the_full_digest_prompt():
+    # gemini-3.6-flash는 무료 키로 실제 다이제스트 프롬프트를 보내면 429로 거절된다.
+    assert FALLBACK_MODELS[0] == "gemini-3.8-flash"
+    assert "gemini-3.6-flash" not in FALLBACK_MODELS
 
 
 def test_select_and_explain_returns_empty_list_without_calling_gemini_when_no_candidates():
@@ -133,7 +159,7 @@ def test_select_and_explain_retries_when_top_level_is_not_a_list():
         result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
 
     assert result == []
-    assert fake_model.generate_content.call_count == 2
+    assert fake_model.generate_content.call_count == 2 * len(FALLBACK_MODELS)
 
 
 def test_select_and_explain_caps_result_to_three_items():

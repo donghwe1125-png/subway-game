@@ -168,6 +168,13 @@ def test_seconds_until_send_time_is_zero_once_past_the_target_hour():
     assert main_module.seconds_until_send_time(now) == 0
 
 
+def test_seconds_until_send_time_waits_from_the_early_wakeup():
+    # 워크플로우는 01:41 KST에 깨운다. GitHub가 제때 깨워도 07:00까지 기다려야 한다.
+    now = datetime(2026, 10, 6, 1, 41, 0, tzinfo=KST)
+
+    assert main_module.seconds_until_send_time(now) == (5 * 60 + 19) * 60
+
+
 def test_seconds_until_send_time_is_capped():
     now = datetime(2026, 10, 6, 1, 0, 0, tzinfo=KST)
 

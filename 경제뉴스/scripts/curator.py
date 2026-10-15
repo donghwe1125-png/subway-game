@@ -6,7 +6,12 @@ import google.generativeai as genai
 
 from scripts.models import DigestItem, NewsCandidate
 
-DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+# 앞에서부터 차례로 시도한다. 구글이 무료 키의 모델을 예고 없이 막거나 단종시키는
+# 일이 반복돼서(2.0-flash 단종, 3.6-flash는 실제 프롬프트에 429) 하나가 거절되면
+# 다음 모델로 넘어간다. "-latest"는 구글이 최신 flash로 계속 바꿔주는 별칭이라 마지막 보루.
+FALLBACK_MODELS = (
+    (os.environ["GEMINI_MODEL"],) if os.environ.get("GEMINI_MODEL") else ()
+) + ("gemini-3.8-flash", "gemini-flash-latest")
 
 # 프롬프트에 "가장 중요한 세계 경제뉴스 3개"를 요청하지만, 모델이 이를 넘겨서
 # 반환하는 경우를 대비해 코드 레벨에서도 상한을 강제한다.
@@ -98,29 +103,35 @@ def _parse_response(text: str) -> list[DigestItem]:
 
 
 def select_and_explain(
-    candidates: list[NewsCandidate], api_key: str, model_name: str = DEFAULT_MODEL
+    candidates: list[NewsCandidate],
+    api_key: str,
+    model_names: tuple[str, ...] = FALLBACK_MODELS,
 ) -> list[DigestItem]:
     if not candidates:
         return []
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
     prompt = _build_prompt(candidates)
     valid_urls = {c.url for c in candidates}
 
-    for attempt in range(2):
-        try:
-            response = model.generate_content(prompt)
-            items = _parse_response(response.text or "")
-            filtered = []
-            for item in items:
-                if item.url not in valid_urls:
-                    print(f"[curator] dropped item with unrecognized url: {item.url}")
-                    continue
-                filtered.append(item)
-            return filtered[:MAX_ITEMS]
-        except (json.JSONDecodeError, KeyError, TypeError) as exc:
-            print(f"[curator] parse failed (attempt {attempt + 1}): {exc}")
-        except Exception as exc:
-            print(f"[curator] gemini call failed (attempt {attempt + 1}): {exc}")
+    for model_name in model_names:
+        model = genai.GenerativeModel(model_name)
+        # 응답 형식이 틀린 경우만 같은 모델로 한 번 더 시도한다.
+        # 호출 자체가 거절되면(429, 404 등) 즉시 재시도해도 같은 결과라 다음 모델로 간다.
+        for attempt in range(2):
+            try:
+                response = model.generate_content(prompt)
+                items = _parse_response(response.text or "")
+                filtered = []
+                for item in items:
+                    if item.url not in valid_urls:
+                        print(f"[curator] dropped item with unrecognized url: {item.url}")
+                        continue
+                    filtered.append(item)
+                return filtered[:MAX_ITEMS]
+            except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                print(f"[curator] {model_name} parse failed (attempt {attempt + 1}): {exc}")
+            except Exception as exc:
+                print(f"[curator] {model_name} call failed: {str(exc).splitlines()[0]}")
+                break
     return []

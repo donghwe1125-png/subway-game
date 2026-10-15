@@ -13,12 +13,13 @@ from scripts.telegram_sender import send_message
 KST = timezone(timedelta(hours=9))
 DEFAULT_STATE_PATH = os.path.join(os.path.dirname(__file__), "..", "state.json")
 
-# 목표 발송 시각(KST). GitHub Actions의 예약 실행은 정시에 몰려 대기가 길어지므로
-# 워크플로우는 이 시각보다 조금 이른 "애매한 분"에 깨우고, 여기까지 기다렸다 보낸다.
+# 목표 발송 시각(KST). GitHub Actions의 예약 실행은 실제로 2~5시간씩 늦게 시작되므로
+# 워크플로우는 01:41 KST에 넉넉히 일찍 깨우고, 여기까지 기다렸다 보낸다.
 SEND_AT_HOUR = 7
 SEND_AT_MINUTE = 0
-# 깨어난 시각이 목표보다 너무 이르면(설정 실수, 수동 조작 등) 무한정 기다리지 않는다.
-MAX_WAIT_SECONDS = 40 * 60
+# 01:41에 제때 깨어나도 07:00까지(5시간 19분) 기다릴 수 있어야 한다. GitHub 작업은
+# 6시간이 지나면 강제 종료되므로 그보다 충분히 짧게 잡는다.
+MAX_WAIT_SECONDS = 5 * 60 * 60 + 20 * 60
 
 
 def _now() -> datetime:
