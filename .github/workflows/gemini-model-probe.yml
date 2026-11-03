@@ -39,16 +39,15 @@ jobs:
               except Exception as e:
                   tokens = "?"
               try:
-                  r = m.generate_content(prompt)
+                  r = m.generate_content(prompt, request_options={'retry': None, 'timeout': 120})
                   print(f"PROBE OK    {name:24} {tag:10} tokens={tokens} {time.time()-t:.0f}s out={len(r.text or '')}")
               except Exception as e:
                   print(f"PROBE FAIL  {name:24} {tag:10} tokens={tokens} {time.time()-t:.0f}s {str(e).splitlines()[0][:60]}")
                   for line in str(e).splitlines():
                       if any(k in line for k in ("quota_id", "quota_value", "retry in")):
                           print("      ", line.strip()[:110])
-              time.sleep(20)
-          call("gemini-3.8-flash", "Reply with OK", "tiny")
-          for name in ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.7-flash"]:
-              for frac, tag in [(4, "quarter"), (2, "half"), (1, "full")]:
-                  call(name, _build_prompt(n[: max(1, len(n)//frac)]), tag)
+              time.sleep(15)
+          full = _build_prompt(n)
+          for name in ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.6-flash"]:
+              call(name, full, "full")
           EOF
