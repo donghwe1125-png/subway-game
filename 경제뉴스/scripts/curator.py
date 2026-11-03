@@ -6,12 +6,24 @@ import google.generativeai as genai
 
 from scripts.models import DigestItem, NewsCandidate
 
-# 앞에서부터 차례로 시도한다. 구글이 무료 키의 모델을 예고 없이 막거나 단종시키는
-# 일이 반복돼서(2.0-flash 단종, 3.6-flash는 실제 프롬프트에 429) 하나가 거절되면
-# 다음 모델로 넘어간다. "-latest"는 구글이 최신 flash로 계속 바꿔주는 별칭이라 마지막 보루.
+# 앞에서부터 차례로 시도한다. 구글이 무료 키의 모델을 예고 없이 막거나 단종시키고,
+# 붐빌 때는 첫 요청부터 429로 거절하는 일이 반복돼서 하나가 거절되면 다음 모델로 넘어간다.
+# flash 모델들이 한꺼번에 거절되는 날에도 lite 모델들은 받아줬으므로 마지막 보루로 둔다.
 FALLBACK_MODELS = (
     (os.environ["GEMINI_MODEL"],) if os.environ.get("GEMINI_MODEL") else ()
-) + ("gemini-3.8-flash", "gemini-flash-latest")
+) + (
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-lite-latest",
+)
+
+# SDK는 429를 받으면 알아서 수십 번 재요청하는데, 그 재요청이 모델당 하루 20회 무료
+# 한도를 다 태워 뒤의 모델들까지 막아버린다. SDK 재시도는 끄고 우리 쪽에서만 재시도한다.
+REQUEST_OPTIONS = {"retry": None, "timeout": 120}
 
 # 프롬프트에 "가장 중요한 세계 경제뉴스 3개"를 요청하지만, 모델이 이를 넘겨서
 # 반환하는 경우를 대비해 코드 레벨에서도 상한을 강제한다.
@@ -102,6 +114,17 @@ def _parse_response(text: str) -> list[DigestItem]:
     return items
 
 
+def _describe_failure(exc: Exception) -> str:
+    """오류 첫 줄에 어떤 한도(분당/하루)에 걸렸는지를 붙인다. 원문은 수십 줄이라 줄인다."""
+    lines = str(exc).splitlines()
+    quota = [
+        line.strip()
+        for line in lines
+        if "quota_id" in line or "Please retry in" in line
+    ]
+    return " | ".join(lines[:1] + quota)
+
+
 def select_and_explain(
     candidates: list[NewsCandidate],
     api_key: str,
@@ -120,7 +143,7 @@ def select_and_explain(
         # 호출 자체가 거절되면(429, 404 등) 즉시 재시도해도 같은 결과라 다음 모델로 간다.
         for attempt in range(2):
             try:
-                response = model.generate_content(prompt)
+                response = model.generate_content(prompt, request_options=REQUEST_OPTIONS)
                 items = _parse_response(response.text or "")
                 filtered = []
                 for item in items:
@@ -132,6 +155,6 @@ def select_and_explain(
             except (json.JSONDecodeError, KeyError, TypeError) as exc:
                 print(f"[curator] {model_name} parse failed (attempt {attempt + 1}): {exc}")
             except Exception as exc:
-                print(f"[curator] {model_name} call failed: {str(exc).splitlines()[0]}")
+                print(f"[curator] {model_name} call failed: {_describe_failure(exc)}")
                 break
     return []

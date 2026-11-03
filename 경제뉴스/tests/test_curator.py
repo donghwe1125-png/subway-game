@@ -83,10 +83,27 @@ def test_select_and_explain_falls_back_to_next_model_when_first_is_rejected():
     assert [c.args[0] for c in mock_cls.call_args_list] == list(FALLBACK_MODELS[:2])
 
 
-def test_default_model_is_one_that_handles_the_full_digest_prompt():
-    # gemini-3.6-flash는 무료 키로 실제 다이제스트 프롬프트를 보내면 429로 거절된다.
+def test_fallback_chain_ends_with_lite_models():
+    # 무료 등급의 flash 모델들이 한꺼번에 거절되는 날이 있어서, 그런 날에도 잘 받아주던
+    # 가벼운 lite 모델들을 마지막 보루로 둔다.
     assert FALLBACK_MODELS[0] == "gemini-3.8-flash"
-    assert "gemini-3.6-flash" not in FALLBACK_MODELS
+    assert "lite" in FALLBACK_MODELS[-1]
+    assert len(FALLBACK_MODELS) >= 5
+
+
+def test_select_and_explain_disables_sdk_auto_retry():
+    # SDK는 429를 받으면 알아서 수십 번 재요청하는데, 그 재요청이 모델당 하루 20회
+    # 무료 한도를 다 태워서 이후 모델들까지 막힌다. 재시도는 우리 쪽에서만 한다.
+    fake_response = MagicMock()
+    fake_response.text = VALID_JSON_RESPONSE
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    request_options = fake_model.generate_content.call_args.kwargs["request_options"]
+    assert request_options["retry"] is None
 
 
 def test_select_and_explain_returns_empty_list_without_calling_gemini_when_no_candidates():

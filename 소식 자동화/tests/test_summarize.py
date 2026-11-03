@@ -131,3 +131,17 @@ def test_summarize_items_replaces_title_with_summary():
 
     assert result[0].title == "요약본"
     assert result[0].url == "u"
+
+
+def test_summarize_title_disables_sdk_auto_retry():
+    # SDK의 자동 재요청이 하루 무료 한도를 태우지 않도록 재시도를 끈다.
+    fake_response = MagicMock()
+    fake_response.text = "요약본"
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.summarize.genai.GenerativeModel", return_value=fake_model):
+        summarize_title("제목", "", api_key="fake-key")
+
+    request_options = fake_model.generate_content.call_args.kwargs["request_options"]
+    assert request_options["retry"] is None

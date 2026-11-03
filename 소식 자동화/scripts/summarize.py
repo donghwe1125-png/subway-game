@@ -17,6 +17,9 @@ FALLBACK_MODELS = (
     "gemini-3.7-flash",
     "gemini-flash-latest",
 )
+# SDK는 429를 받으면 알아서 수십 번 재요청해 모델당 하루 20회 무료 한도를 태워버린다.
+# 재시도는 끄고, 거절되면 바로 다음 모델로 넘어간다.
+REQUEST_OPTIONS = {"retry": None, "timeout": 60}
 # Gemini 무료 등급은 모델당 분당 5회 호출까지만 허용한다.
 SLEEP_SECONDS = 13.0
 
@@ -32,7 +35,7 @@ def summarize_title(
         f"제목: {title}\n"
         f"부가정보: {meta}"
     )
-    response = model.generate_content(prompt)
+    response = model.generate_content(prompt, request_options=REQUEST_OPTIONS)
     text = (response.text or "").strip()
     return text or title
 
