@@ -248,3 +248,50 @@ def test_select_and_explain_strips_uppercase_json_fence():
 
     assert len(result) == 1
     assert result[0].title_kr == "연준 금리 동결"
+
+
+def test_select_and_explain_maps_items_back_by_candidate_id():
+    # lite 모델은 url을 그대로 옮겨 적지 않고 bbc.com -> bbc.co.uk 처럼 고쳐 쓴다.
+    # 그래서 후보마다 번호(id)를 주고, 기사 주소와 언론사는 원본 후보에서 가져온다.
+    response_with_mangled_url = json.dumps(
+        [
+            {
+                "id": 1,
+                "title_kr": "유가 상승",
+                "what_happened": "설명",
+                "why_it_matters": "이유",
+                "source_name": "CNBC News",
+                "url": "https://b-mangled",
+            }
+        ]
+    )
+    fake_response = MagicMock()
+    fake_response.text = response_with_mangled_url
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    assert [(item.url, item.source_name) for item in result] == [("https://b", "CNBC")]
+
+
+def test_prompt_numbers_each_candidate():
+    from scripts.curator import _build_prompt
+
+    prompt = _build_prompt(SAMPLE_CANDIDATES)
+
+    assert '"id": 0' in prompt and '"id": 1' in prompt
+
+
+def test_select_and_explain_drops_duplicate_picks():
+    entry = {"id": 0, "title_kr": "제목", "what_happened": "설명", "why_it_matters": "이유"}
+    fake_response = MagicMock()
+    fake_response.text = json.dumps([entry, dict(entry, title_kr="같은 기사 다른 제목")])
+    fake_model = MagicMock()
+    fake_model.generate_content.return_value = fake_response
+
+    with patch("scripts.curator.genai.GenerativeModel", return_value=fake_model):
+        result = select_and_explain(SAMPLE_CANDIDATES, api_key="fake-key")
+
+    assert [item.url for item in result] == ["https://a"]

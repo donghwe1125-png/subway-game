@@ -44,8 +44,7 @@ PROMPT_TEMPLATE = """\
     "title_kr": "짧은 한글 제목",
     "what_happened": "무슨 일이 있었는지, 배경 설명 포함해서 자세히",
     "why_it_matters": "왜 중요한지, 한국/개인 생활에 미치는 영향 포함해서 자세히",
-    "source_name": "언론사 이름 (후보 목록의 source 값 그대로)",
-    "url": "후보 목록의 url 값 그대로"
+    "id": 후보 목록의 id 숫자 그대로
   }}
 ]
 
@@ -59,13 +58,13 @@ PROMPT_TEMPLATE = """\
 def _build_prompt(candidates: list[NewsCandidate]) -> str:
     trimmed = [
         {
+            "id": i,
             "source": c.source,
             "title": c.title,
             "summary": c.summary[:200],
-            "url": c.url,
             "published": c.published,
         }
-        for c in candidates
+        for i, c in enumerate(candidates)
     ]
     return PROMPT_TEMPLATE.format(
         candidates_json=json.dumps(trimmed, ensure_ascii=False)
@@ -80,7 +79,21 @@ def _extract_json_payload(text: str) -> str:
     return text.strip()
 
 
-def _parse_response(text: str) -> list[DigestItem]:
+def _resolve_candidate(
+    entry: dict, candidates: list[NewsCandidate]
+) -> NewsCandidate | None:
+    """모델이 고른 기사를 원본 후보에서 찾는다. 모델은 url을 고쳐 쓰는 일이 있어서
+    번호(id)를 먼저 믿고, 번호가 없을 때만 url이 정확히 일치하는 후보를 쓴다."""
+    index = entry.get("id")
+    if isinstance(index, str) and index.strip().isdigit():
+        index = int(index)
+    if isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(candidates):
+        return candidates[index]
+    url = entry.get("url")
+    return next((c for c in candidates if c.url == url), None)
+
+
+def _parse_response(text: str, candidates: list[NewsCandidate]) -> list[DigestItem]:
     cleaned = _extract_json_payload(text)
     try:
         data = json.loads(cleaned)
@@ -100,15 +113,25 @@ def _parse_response(text: str) -> list[DigestItem]:
     items = []
     for i, entry in enumerate(data):
         try:
+            candidate = _resolve_candidate(entry, candidates)
+            if candidate is not None and any(item.url == candidate.url for item in items):
+                print(f"[curator] dropped entry {i}: same article picked twice")
+                continue
+            if candidate is None:
+                print(
+                    f"[curator] dropped entry {i} matching no candidate: "
+                    f"id={entry.get('id')!r} url={entry.get('url')!r}"
+                )
+                continue
             item = DigestItem(
                 title_kr=entry["title_kr"],
                 what_happened=entry["what_happened"],
                 why_it_matters=entry["why_it_matters"],
-                source_name=entry["source_name"],
-                url=entry["url"],
+                source_name=candidate.source,
+                url=candidate.url,
             )
             items.append(item)
-        except (KeyError, TypeError) as exc:
+        except (KeyError, TypeError, AttributeError) as exc:
             print(f"[curator] entry {i} skipped: {exc}")
 
     return items
@@ -135,7 +158,6 @@ def select_and_explain(
 
     genai.configure(api_key=api_key)
     prompt = _build_prompt(candidates)
-    valid_urls = {c.url for c in candidates}
 
     for model_name in model_names:
         model = genai.GenerativeModel(model_name)
@@ -144,14 +166,8 @@ def select_and_explain(
         for attempt in range(2):
             try:
                 response = model.generate_content(prompt, request_options=REQUEST_OPTIONS)
-                items = _parse_response(response.text or "")
-                filtered = []
-                for item in items:
-                    if item.url not in valid_urls:
-                        print(f"[curator] dropped item with unrecognized url: {item.url}")
-                        continue
-                    filtered.append(item)
-                return filtered[:MAX_ITEMS]
+                items = _parse_response(response.text or "", candidates)
+                return items[:MAX_ITEMS]
             except (json.JSONDecodeError, KeyError, TypeError) as exc:
                 print(f"[curator] {model_name} parse failed (attempt {attempt + 1}): {exc}")
             except Exception as exc:
