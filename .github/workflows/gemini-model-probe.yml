@@ -1,0 +1,54 @@
+name: Gemini Model Probe (temporary)
+
+# 일회용 진단: 실제 다이제스트 프롬프트를 크기별로 잘라 Gemini 모델들에 보내본다.
+# 텔레그램 발송 없음. 확인이 끝나면 이 파일은 삭제한다.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 경제뉴스
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q -r requirements.txt
+      - name: Probe
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python -W ignore - <<'EOF'
+          import os, time
+          import google.generativeai as genai
+          from scripts.main import collect_candidates
+          from scripts.news_sources import SOURCES
+          from scripts import state_store
+          from scripts.curator import _build_prompt
+          c, _ = collect_candidates(SOURCES)
+          n = state_store.filter_unsent(c, state_store.load_sent_urls("state.json"))
+          genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+          def call(name, prompt, tag):
+              t = time.time()
+              try:
+                  m = genai.GenerativeModel(name)
+                  tokens = m.count_tokens(prompt).total_tokens
+              except Exception as e:
+                  tokens = "?"
+              try:
+                  r = m.generate_content(prompt)
+                  print(f"PROBE OK    {name:24} {tag:10} tokens={tokens} {time.time()-t:.0f}s out={len(r.text or '')}")
+              except Exception as e:
+                  print(f"PROBE FAIL  {name:24} {tag:10} tokens={tokens} {time.time()-t:.0f}s {str(e).splitlines()[0][:60]}")
+                  for line in str(e).splitlines():
+                      if any(k in line for k in ("quota_id", "quota_value", "retry in")):
+                          print("      ", line.strip()[:110])
+              time.sleep(20)
+          call("gemini-3.8-flash", "Reply with OK", "tiny")
+          for name in ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.7-flash"]:
+              for frac, tag in [(4, "quarter"), (2, "half"), (1, "full")]:
+                  call(name, _build_prompt(n[: max(1, len(n)//frac)]), tag)
+          EOF
